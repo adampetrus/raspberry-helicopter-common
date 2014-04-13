@@ -144,6 +144,15 @@ void rpi_sensor_pressure::setPressureTemperature(double t,double p) {
     temperature[currentIndex] = t;
 }
 
+double rpi_sensor_pressure::getSeaLevelPressure() {
+    return seaLevelPressure_v;
+}
+void rpi_sensor_pressure::setSeaLevelPressure(double slp){
+    seaLevelPressure_v = slp;
+}
+#ifndef DEV_MS5611_I2C
+void rpi_sensor_pressure::measure(){}
+#endif
 
 bool rpi_sensor_pressure::test() {
     double egTemp = double( rand())/ double(RAND_MAX ) * 21 + 273;
@@ -200,13 +209,22 @@ void rpi_sensor_pressure::addtoDomDoc(QDomDocument &d,QDomElement &e,bool values
     if (values) {
     QDomElement xPressure = d.createElement("Pressure");
     QDomText tPressure = d.createTextNode(QString(fromDouble(getPressure())));
+    QDomElement xSeaLevelPressure = d.createElement("SeaLevelPressure");
+    QDomText tSeaLevelPressure = d.createTextNode(QString(fromDouble(getSeaLevelPressure())));
+
+
     QDomElement xTemperature = d.createElement("Temperature");
     QDomText tTemperature = d.createTextNode(QString(fromDouble(getTemperature())));
 
     e.appendChild(xPressure);
     e.appendChild(xTemperature);
+
     xPressure.appendChild(tPressure);
     xTemperature.appendChild(tTemperature);
+
+    e.appendChild(xSeaLevelPressure);
+    xSeaLevelPressure.appendChild(tSeaLevelPressure);
+
     }
     //d.appendChild(e);
 }
@@ -235,7 +253,7 @@ QDateTime& rpi_sensor_ultrasonic::ZeroTime() {
 void rpi_sensor_pressure::readDomElement(QDomElement &elem){
     double tpress =0;
     double ttemp =0;
-
+    double tseap =0;
     QDomNode n = elem.firstChild();
     while(!n.isNull()) {
         QDomElement e = n.toElement(); // try to convert the node to an element.
@@ -247,7 +265,12 @@ void rpi_sensor_pressure::readDomElement(QDomElement &elem){
             if (e.tagName() == "Temperature") {
                 ttemp = fromHex(e.text().toLocal8Bit());
             }
+            if (e.tagName() == "SeaLevelPressure") {
+                tseap = fromHex(e.text().toLocal8Bit());
+            }
+
             setPressureTemperature(tpress,ttemp);
+            setSeaLevelPressure(tseap);
             //cout << qPrintable(e.tagName()) << endl; // the node really is an element.
         }
         n = n.nextSibling();
@@ -732,6 +755,7 @@ rpi_sensor_gyro::rpi_sensor_gyro(const int mode) {
     acceleration= new double*[mode];
     velocity= new double*[mode];
     angle=new double*[mode];
+    quaternion =new double*[mode];
     cMode = mode;
     reset();
     setType(rpi_device::RPI_GYRO);
@@ -745,15 +769,23 @@ void rpi_sensor_gyro::reset() {
         acceleration[c] = new double [3];
         velocity[c] = new double [3];
         angle[c] = new double [3];
+        quaternion[c] =new double[4];
         for (int k=0;k<3;k++) {
             acceleration[c][k] =0;
             velocity[c][k] =0;
             angle[c][k] =0;
+            quaternion[c][k] =0;
         }
+        quaternion[c][3] =0;
     }
     currentIndex =-1;
     setType(rpi_device::RPI_GYRO);
 }
+void rpi_sensor_gyro::setQuaternion(double *q) {
+  currentIndex = (++currentIndex % cMode);
+  for (int i=0;i<4;i++) quaternion[currentIndex][i] = q[i];
+}
+
 void rpi_sensor_gyro::setAcceleration(double t, double p,double s,QDateTime d){
     currentIndex = (++currentIndex % cMode);
     acceleration[currentIndex][0] =t;
@@ -902,6 +934,29 @@ void rpi_sensor_gyro::addtoDomDoc(QDomDocument &d, QDomElement &e, bool values, 
     elpAcceleration.appendChild(tpAcceleration);
     elsAcceleration.appendChild(tsAcceleration);
 
+
+   QDomElement elQuaternion = d.createElement("Acceleration");
+    QDomElement elQuaternion0 = d.createElement("q0");
+    QDomElement elQuaternion1 = d.createElement("q1");
+    QDomElement elQuaternion2 = d.createElement("q2");
+    QDomElement elQuaternion3 = d.createElement("q3");
+
+    QDomText ttQuaternion0 = d.createTextNode(QString(fromDouble(currentQuaternion(0))));
+    QDomText ttQuaternion1 = d.createTextNode(QString(fromDouble(currentQuaternion(1))));
+    QDomText ttQuaternion2 = d.createTextNode(QString(fromDouble(currentQuaternion(2))));
+    QDomText ttQuaternion3 = d.createTextNode(QString(fromDouble(currentQuaternion(3))));
+    
+    e.appendChild(elQuaternion);
+    elQuaternion0.appendChild(elQuaternion0);
+    elQuaternion1.appendChild(elQuaternion1);
+    elQuaternion2.appendChild(elQuaternion2);
+    elQuaternion3.appendChild(elQuaternion3);
+    
+    elQuaternion0.appendChild(ttQuaternion0);
+    elQuaternion1.appendChild(ttQuaternion1);
+    elQuaternion2.appendChild(ttQuaternion2);
+    elQuaternion3.appendChild(ttQuaternion3);
+
     QDomElement elTime = d.createElement("Time");
     QDomText tTime = d.createTextNode(QString(fromDouble(currentTime())));
     }
@@ -922,6 +977,8 @@ void rpi_sensor_gyro::readDomElement(QDomElement &elem){
     double *tempAcceleration =0;
     double *tempVelocity =0;
     double *tempAngle =0;
+    double *tempQuaternion =0;
+    
     double tempTime;
     QDomNode n = elem.firstChild();
     while(!n.isNull()) {
@@ -936,6 +993,9 @@ void rpi_sensor_gyro::readDomElement(QDomElement &elem){
             }
             if (e.tagName() == "Angle") {
                 tempAngle = tpsNode(n.firstChild());
+            }
+            if (e.tagName() == "Quaternion") {
+                tempQuaternion = quaternionNode(n.firstChild());
             }
             if (e.tagName() == "Time") {
                 tempTime = fromHex(e.text().toLocal8Bit());
@@ -956,6 +1016,11 @@ void rpi_sensor_gyro::readDomElement(QDomElement &elem){
         setAngle(tempAngle[0],tempAngle[1],tempAngle[2]);
         delete [] tempAngle;
     }
+    if (tempQuaternion) {
+        setQuaternion(tempQuaternion);
+        delete [] tempQuaternion;
+    }
+    
     rpi_device::readDomElement(elem);
 }
 
@@ -968,6 +1033,11 @@ double rpi_sensor_gyro::currentPhiAngle() {
 double rpi_sensor_gyro::currentSigmaAngle() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return angle[currentIndex][2];}
+
+double rpi_sensor_gyro::currentQuaternion(const int i) {
+    if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
+    return quaternion[currentIndex][i]; }
+
 
 double rpi_sensor_gyro::currentThetaVelocity() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;

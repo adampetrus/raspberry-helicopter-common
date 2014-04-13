@@ -49,9 +49,14 @@ public :
     void readXML(QString i);
     void readDomElement(QDomElement &elem);
     bool test();
+    double getSeaLevelPressure();
+    void setSeaLevelPressure(double slp);
+    void measure();
+
 private:
     int cMode;
     double *pressure;
+    double seaLevelPressure_v;
     double *temperature;
     int currentIndex;
     rpi_csv_log *log;
@@ -141,6 +146,7 @@ public:
     void setAngle(double t, double p,double s);
     void setVelocity(double t, double p,double s);
     void setAcceleration(double t, double p,double s,QDateTime d);
+    void setQuaternion(double *q);
     void startLog(QString filename);
     void logEntry();
     void stopLog();
@@ -157,6 +163,8 @@ public:
     double currentThetaAcceleration();
     double currentPhiAcceleration();
     double currentSigmaAcceleration();
+    double currentQuaternion(const int i);
+    
     void readXML(QString i);
     void readDomElement(QDomElement &elem);
     bool test();
@@ -171,6 +179,8 @@ private:
     double **acceleration;
     double **velocity;
     double **angle;
+    double **quaternion;
+    
     int currentIndex;
     rpi_csv_log *log;
 
