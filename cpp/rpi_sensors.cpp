@@ -935,7 +935,7 @@ void rpi_sensor_gyro::addtoDomDoc(QDomDocument &d, QDomElement &e, bool values, 
     elsAcceleration.appendChild(tsAcceleration);
 
 
-   QDomElement elQuaternion = d.createElement("Acceleration");
+   QDomElement elQuaternion = d.createElement("Quaternion");
     QDomElement elQuaternion0 = d.createElement("q0");
     QDomElement elQuaternion1 = d.createElement("q1");
     QDomElement elQuaternion2 = d.createElement("q2");
@@ -1098,3 +1098,28 @@ void rpi_sensor_ultrasonic::addtoDomDoc(QDomDocument &d,QDomElement &e,bool valu
     }
     rpi_device::addtoDomDoc(d,e,conf);
 }
+
+double *quaternionNode(QDomNode n) {
+    double *q = new double [4];
+    while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "q0") {
+                q[0] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q1") {
+                q[1] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q2") {
+                q[2] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q3") {
+                q[2] = fromHex(e.text().toLocal8Bit());
+            } 
+            }
+        n = n.nextSibling();
+    }
+    return q;
+}
+
