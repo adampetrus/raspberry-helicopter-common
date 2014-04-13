@@ -186,7 +186,7 @@ private:
 
 };
 
-
+double *quaternionNode(QDomNode n);
 
 class rpi_sensor_ultrasonic : public rpi_device{
 public:
