@@ -7,6 +7,15 @@
 
 const char qdatetimestring[] = "dd.MM.yyyy hh:mm:ss.zzz";
 
+
+
+inline void quaternionToEuler(float *q, float *euler) {
+  euler[0] = atan2(2 * q[1] * q[2] - 2 * q[0] * q[3], 2 * q[0]*q[0] + 2 * q[1] * q[1] - 1); // psi
+  euler[1] = -asin(2 * q[1] * q[3] + 2 * q[0] * q[2]); // theta
+  euler[2] = atan2(2 * q[2] * q[3] - 2 * q[0] * q[1], 2 * q[0] * q[0] + 2 * q[3] * q[3] - 1); // phi
+}
+
+
 QString nowString() {
     QDateTime n = QDateTime::currentDateTime();
     QString r = n.toString("d-M-yy hh:mm:ss.zzz");
@@ -93,6 +102,8 @@ bool rpi_sensor_compass::test() {
 
     return false;
 }
+
+
 
 
 
@@ -289,6 +300,8 @@ rpi_sensor_gps::rpi_sensor_gps(const int mode){
     latitude = new double[mode];
     longitude = new double[mode];
     height = new double[mode];
+    accuracy = new double[mode];
+
     currentIndex =0;
     setType(rpi_device::RPI_GPS);
 }
@@ -300,6 +313,13 @@ void rpi_sensor_gps::readXML(QString i) {
     QDomElement docElem = xmlDoc.documentElement();
     readDomElement(docElem);
 }
+
+void rpi_sensor_gps::nextValue() {
+    currentIndex = ++currentIndex % cMode;
+}
+
+
+
 void rpi_sensor_gps::readDomElement(QDomElement &elem){
 
     /*double tlatitude =0;
@@ -389,26 +409,32 @@ rpi_sensor_gps::~rpi_sensor_gps(){
         delete [] latitude;
         delete [] longitude;
         delete [] height;
+        delete [] accuracy;
     }else{
         delete date;
         delete latitude;
         delete longitude;
         delete height;
+        delete accuracy;
     }
 }
 void rpi_sensor_gps::startLog(QString filename){}
 void rpi_sensor_gps::logEntry(){}
 void rpi_sensor_gps::stopLog(){}
 
-double rpi_sensor_gps::getLatitude() {
+double &rpi_sensor_gps::getLatitude() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return latitude[currentIndex]; }
-double rpi_sensor_gps::getLongitude() {
+double &rpi_sensor_gps::getLongitude() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return longitude[currentIndex]; }
-double rpi_sensor_gps::getHeight() {
+double &rpi_sensor_gps::getHeight() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return height[currentIndex]; }
+double &rpi_sensor_gps::getAccuracy() {
+    if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
+    return accuracy[currentIndex]; }
+
 QDateTime rpi_sensor_gps::getTime() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return date[currentIndex]; }
@@ -479,7 +505,7 @@ void rpi_sensor_acc::reset() {
     currentIndex =-1;
 }
 void rpi_sensor_acc::setAcceleration(double x, double y,double z,QDateTime t){
-    currentIndex = (++currentIndex % cMode);
+    //currentIndex = (++currentIndex % cMode);
     acceleration[currentIndex][0] =x;
     acceleration[currentIndex][1] =y;
     acceleration[currentIndex][2] =z;
@@ -1123,3 +1149,360 @@ double *quaternionNode(QDomNode n) {
     return q;
 }
 
+
+
+
+//-----------------------------  9DOF IMU ----------------------------------------
+rpi_imu_9dof::rpi_imu_9dof(const int mode,QDateTime z):rpi_device(){
+
+    //zeroTime = QDateTime::currentDateTime();
+    time= new double[mode];
+    quaternion =new float*[mode];
+    euler =new float*[mode];
+    accel = new int*[mode];
+    gyro = new int*[mode];
+    magn = new int*[mode];
+
+    for (int k=0;k<mode;k++) {
+        quaternion[k] = new float[NUM_FOUR];
+        euler[k] = new float[NUM_THREE];
+        accel[k] = new int[NUM_THREE];
+        gyro[k] = new int[NUM_THREE];
+        magn[k] = new int[NUM_THREE];
+    }
+
+    cMode = mode;
+    setType(rpi_device::RPI_IMU9DOF);    //if (cMode == SENSOR_MODE_CLIENT) currentIndex =0;
+    currentIndex =0;
+}
+
+rpi_imu_9dof::~rpi_imu_9dof() {
+    for (int k=0;k<cMode;k++) {
+        delete [] quaternion[k];
+        delete [] euler[k];
+        delete [] accel[k];
+        delete [] gyro[k];
+        delete [] magn[k];
+    }
+    delete [] quaternion;
+    delete [] euler;
+    delete [] accel;
+    delete [] gyro;
+    delete [] magn;
+}
+
+void rpi_imu_9dof::nextIndex() {
+    currentIndex = (++currentIndex % cMode);
+}
+void rpi_imu_9dof::setQuaternion(const float q1,const float q2,const float q3,const float q4){
+    quaternion[currentIndex][0] = q1;
+    quaternion[currentIndex][1] = q2;
+    quaternion[currentIndex][2] = q3;
+    quaternion[currentIndex][3] = q4;
+}
+void rpi_imu_9dof::setQuaternion(const float *q){
+    for (int j=0;j<NUM_FOUR;j++) quaternion[currentIndex][j] = q[j];
+}
+float rpi_imu_9dof::getQuaternion(int k,int i){
+    if (i == -1) i = currentIndex;
+    return quaternion[i%cMode][k];
+}
+void rpi_imu_9dof::addtoDomDoc(QDomDocument &d,QDomElement &e,bool values,bool conf){
+
+    rpi_device::addtoDomDoc(d,e,conf);
+    if (values) {
+
+        QDomElement eAccel = d.createElement("Acceleration");
+        QDomElement eMagn = d.createElement("Magnetometer");
+        QDomElement eGyro = d.createElement("Gyroscope");
+        QDomElement eQuant = d.createElement("Quaternion");
+        QDomElement eEuler = d.createElement("Euler");
+
+        e.appendChild(eAccel);
+        e.appendChild(eMagn);
+        e.appendChild(eGyro);
+        e.appendChild(eQuant);
+        e.appendChild(eEuler);
+
+        addQuantElementsFromFloat(d,eQuant,quaternion[currentIndex]);
+
+        addXYZElementFromInt(d,eMagn,magn[currentIndex]);
+        addXYZElementFromInt(d,eGyro,gyro[currentIndex]);
+        addXYZElementFromInt(d,eAccel,accel[currentIndex]);
+        addTPSElementsFromFloat(d,eEuler,euler[currentIndex]);
+
+        /*if (e.tagName() == "Acceleration") {
+            intXYZNode(n.firstChild(),accel[currentIndex]);
+            //tempAcceleration = tpsNode(n.firstChild());
+        }
+        if (e.tagName() == "Gyroscope") {
+            intXYZNode(n.firstChild(),gyro[currentIndex]);
+        }
+        if (e.tagName() == "Quaternion") {
+            floatQuantNode(n.firstChild(),quaternion[currentIndex]);
+        }
+        if (e.tagName() == "Magnetometer") {
+            intXYZNode(n.firstChild(),magn[currentIndex]);
+        }*/
+
+    }
+
+
+
+
+
+}
+QString rpi_imu_9dof::toXML(bool values,bool conf){
+    QDomDocument xmlDoc("imu9dof");
+    QDomElement root = xmlDoc.createElement("imu9dof");
+    addtoDomDoc(xmlDoc,root,values,conf);
+    xmlDoc.appendChild(root);
+    return xmlDoc.toString();
+}
+void rpi_imu_9dof::readXML(QString i){
+    QDomDocument xmlDoc("imu9dof");
+    xmlDoc.setContent(i);
+    QDomElement docElem = xmlDoc.documentElement();
+    readDomElement(docElem);
+}
+void rpi_imu_9dof::setMagn(const int x,const int y,const int z){
+    magn[currentIndex][NUM_ZERO] =x;
+    magn[currentIndex][NUM_ONE] =y;
+    magn[currentIndex][NUM_TWO] =z;
+}
+void rpi_imu_9dof::setGyro(const int x,const int y,const int z){
+    gyro[currentIndex][NUM_ZERO] =x;
+    gyro[currentIndex][NUM_ONE] =y;
+    gyro[currentIndex][NUM_TWO] =z;
+}
+void rpi_imu_9dof::setAccel(const int x,const int y,const int z){
+    accel[currentIndex][NUM_ZERO] = x;
+    accel[currentIndex][NUM_ONE] = y;
+    accel[currentIndex][NUM_TWO] = z;
+}
+float* rpi_imu_9dof::getCurrentQuaternionPointer(){
+    return quaternion[currentIndex];
+
+}
+int* rpi_imu_9dof::getCurrentMagnPointer(){
+    return magn[currentIndex];
+}
+int* rpi_imu_9dof::getCurrentAccelPointer(){
+    return accel[currentIndex];
+}
+int* rpi_imu_9dof::getCurrentGyroPointer(){
+    return gyro[currentIndex];
+}
+
+void rpi_imu_9dof::setQuatFAccelIGyroIMagnIByHexMessage(QByteArray &qData){
+    //qDebug() << "rpi_imu_9dof dataIn" <<qData ;
+
+    int nextIndex = (currentIndex+1)%cMode;
+    //<< currentIndex;
+    for (int k=0;k<NUM_FOUR;k++) {
+        QByteArray tmpq = reverseHexArray(qData.mid(k*9,8));
+        QByteArray tmpp = QByteArray::fromHex(tmpq);
+        unsigned long  intbits = (tmpp[0] << 24) | ((tmpp[1] & 0xff) << 16) | ((tmpp[2] & 0xff) << 8) | (tmpp[3] & 0xff);
+
+        float *tmpf = (float*)&intbits;
+        //qDebug() << this->currentIndex;
+        //qDebug() <<quaternion[0][k];
+
+        quaternion[nextIndex][k] = *tmpf;//QByteArray::fromHex(tmpq).toFloat();
+        //qDebug() << k << *tmpf ;
+    }
+    //return;
+    //qDebug() << nextIndex << quaternion[nextIndex][0] << quaternion[nextIndex][1] << quaternion[nextIndex][2] << quaternion[nextIndex][3];
+    quaternionToEuler(quaternion[nextIndex],euler[nextIndex]);
+    for (int k=0;k<NUM_THREE;k++) {
+        QByteArray tmpq = reverseHexArray(qData.mid(36+k*5,4));
+        QByteArray tmpp = QByteArray::fromHex(tmpq);
+        accel[nextIndex][k] = ((tmpp[0] & 0xff) << 8) | (tmpp[1] & 0xff);
+    }
+
+
+    for (int k=0;k<NUM_THREE;k++) {
+        QByteArray tmpq = reverseHexArray(qData.mid(51+k*5,4));
+        QByteArray tmpp = QByteArray::fromHex(tmpq);
+        gyro[nextIndex][k] = ((tmpp[0] & 0xff) << 8) | (tmpp[1] & 0xff);
+    }
+
+
+    for (int k=0;k<NUM_THREE;k++) {
+        QByteArray tmpq = reverseHexArray(qData.mid(66+k*5,4));
+        QByteArray tmpp = QByteArray::fromHex(tmpq);
+        magn[nextIndex][k] = ((tmpp[0] & 0xff) << 8) | (tmpp[1] & 0xff);
+    }
+    currentIndex = nextIndex;
+}
+
+
+float rpi_imu_9dof::getEuler(int k,int i){
+    if (i=-1) i= currentIndex;
+    return euler[i][k];
+}
+
+void rpi_imu_9dof::quat2euler(){
+    quaternionToEuler(quaternion[currentIndex],euler[currentIndex]);
+}
+
+void rpi_imu_9dof::readDomElement(QDomElement &elem) {
+//int *tempAcceleration =0;
+//int *tempVelocity =0;
+//int *tempAngle =0;
+//int *tempQuaternion =0;
+
+double tempTime;
+QDomNode n = elem.firstChild();
+while(!n.isNull()) {
+    QDomElement e = n.toElement(); // try to convert the node to an element.
+    if(!e.isNull()) {
+        //qDebug() << e.tagName();
+        if (e.tagName() == "Acceleration") {
+            //qDebug() << e.tagName();
+            intXYZNode(n.firstChild(),accel[currentIndex]);
+            //tempAcceleration = tpsNode(n.firstChild());
+        }
+        if (e.tagName() == "Gyroscope") {
+            //qDebug() << e.tagName();
+            intXYZNode(n.firstChild(),gyro[currentIndex]);
+        }
+        if (e.tagName() == "Quaternion") {
+            //qDebug() << e.tagName();
+            floatQuantNode(n.firstChild(),quaternion[currentIndex]);
+        }
+        if (e.tagName() == "Magnetometer") {
+            //qDebug() << e.tagName();
+            intXYZNode(n.firstChild(),magn[currentIndex]);
+        }
+    }
+    n = n.nextSibling();
+}
+quat2euler();
+rpi_device::readDomElement(elem);
+}
+
+QStringList rpi_imu_9dof::functionTest() {
+    QStringList ret = rpi_device::functionTest();
+
+    QDateTime now =QDateTime::currentDateTime();
+
+    rpi_imu_9dof testDev1(SENSOR_MODE_SERVER,now);
+
+
+    int testAccelArray[] = {4,5,6};
+    int testGyroArray[] = {7,8,9};
+    int testMagn[] = {78,89,10};
+    float testQuant[] = {0.5,0.7,0.3,0.84};
+
+
+
+    testDev1.setAccel(testAccelArray[rpi_device::NUM_ZERO],testAccelArray[rpi_device::NUM_ONE],testAccelArray[rpi_device::NUM_TWO]);
+    testDev1.setGyro(testGyroArray[rpi_device::NUM_ZERO],testGyroArray[rpi_device::NUM_ONE],testGyroArray[rpi_device::NUM_TWO]);
+    testDev1.setMagn(testMagn[rpi_device::NUM_ZERO],testMagn[rpi_device::NUM_ONE],testMagn[rpi_device::NUM_TWO]);
+    testDev1.setQuaternion(testQuant[rpi_device::NUM_ZERO],testQuant[rpi_device::NUM_ONE],testQuant[rpi_device::NUM_TWO],testQuant[NUM_THREE]);
+    /*int *f = testDev1.getCurrentAccelPointer();
+    qDebug() << f[0] << f[1] << f[2];
+
+    f = testDev1.getCurrentGyroPointer();
+    qDebug() << f[0] << f[1] << f[2];
+
+    f = testDev1.getCurrentMagnPointer();
+    qDebug() << f[0] << f[1] << f[2];*/
+
+    //float *q = testDev1.getCurrentQuaternionPointer();
+    //qDebug() << q[0] << q[1] << q[2] <<q[3];
+
+    if (!(isArrayEqual(testAccelArray,testDev1.getCurrentAccelPointer(),NUM_THREE))) ret << "indivual Acceleration Not Defined";
+    if (!(isArrayEqual(testGyroArray,testDev1.getCurrentGyroPointer(),NUM_THREE))) ret << "indivual Gyro Not Defined";
+    if (!(isArrayEqual(testMagn,testDev1.getCurrentMagnPointer(),NUM_THREE))) ret << "indivual Magnetometer Not Defined";
+    if (!(isArrayEqual(testQuant,testDev1.getCurrentQuaternionPointer(),NUM_FOUR))) ret << "indivual Quaternion Not Defined";
+
+
+    testDev1.setQuaternion(testQuant);
+    /*
+    if (isEqualArray(testAccelArray,testDev1.getCurrentAccelPointer(),NUM_THREE)) ret << "array Acceleration Not Defined";
+    if (isEqualArray(testGyroArray,testDev1.getCurrentGyroPointer(),NUM_THREE)) ret << "array Gyro Not Defined";
+    if (isEqualArray(testMagn,testDev1.getCurrentMagnPointer(),NUM_THREE)) ret << "array Magnetometer Not Defined";
+    */
+    if (!(isArrayEqual(testQuant,testDev1.getCurrentQuaternionPointer(),NUM_FOUR))) ret << "array Quaternion not defined";
+
+    rpi_imu_9dof testDevEqual(testDev1);
+
+    if (!(testDevEqual == testDev1)) {
+        if (testDevEqual.errorString().size())
+            ret << "IMU Equal Test";
+        ret << testDevEqual.errorString();}
+
+
+
+    QString xmlStr= testDev1.toXML();
+
+    //qDebug() << xmlStr;
+
+    rpi_imu_9dof testDevXml(SENSOR_MODE_CLIENT,now); ;
+    testDevXml.readXML(xmlStr);
+
+
+
+    //qDebug() << testDevXml.toXML();
+    if (!(testDevXml == testDev1)) {
+        if (testDevXml.errorString().size())
+            ret << "IMU XML Test";
+        ret << testDevXml.errorString();}
+
+
+    if (ret.size() == 0) { ret << "Function Test : PASS";
+    }else{
+        ret << "Function Test : FAIL";
+    }
+
+
+    return ret;
+}
+
+
+bool rpi_imu_9dof::operator==(const rpi_imu_9dof &i) {
+    errorstring = "";
+    //rpi_device:: *this == i;
+
+    if (!(isArrayEqual(accel[currentIndex],i.accel[i.currentIndex],NUM_THREE))) errorstring += "Acceleration Not Equal:";
+    if (!(isArrayEqual(gyro[currentIndex],i.gyro[i.currentIndex],NUM_THREE))) errorstring +=  "Gyro Not Equal:";
+    if (!(isArrayEqual(magn[currentIndex],i.magn[i.currentIndex],NUM_THREE))) errorstring += "Magnetometer Not Equal:";
+    if (!(isArrayEqual(quaternion[currentIndex],i.quaternion[i.currentIndex],NUM_FOUR))) errorstring += "Quanternion Not Equal:";
+
+    return (!errorstring.size());
+}
+rpi_imu_9dof::rpi_imu_9dof(const rpi_imu_9dof &srcI): rpi_device(srcI) {
+
+    const int mode = srcI.cMode;
+    time= new double[mode];
+    copyArray(srcI.time,time,mode);
+    quaternion =new float*[mode];
+    euler =new float*[mode];
+    accel = new int*[mode];
+    gyro = new int*[mode];
+    magn = new int*[mode];
+
+    for (int k=0;k<mode;k++) {
+        quaternion[k] = new float[NUM_FOUR];
+        euler[k] = new float[NUM_THREE];
+        accel[k] = new int[NUM_THREE];
+        gyro[k] = new int[NUM_THREE];
+        magn[k] = new int[NUM_THREE];
+        copyArray(srcI.quaternion[k],quaternion[k],NUM_FOUR);
+        copyArray(srcI.euler[k],euler[k],NUM_THREE);
+        copyArray(srcI.accel[k],accel[k],NUM_THREE);
+        copyArray(srcI.gyro[k],gyro[k],NUM_THREE);
+        copyArray(srcI.magn[k],magn[k],NUM_THREE);
+
+
+    }
+
+    cMode = mode;
+    setType(rpi_device::RPI_IMU9DOF);    //if (cMode == SENSOR_MODE_CLIENT) currentIndex =0;
+
+    currentIndex = srcI.currentIndex;
+
+
+}

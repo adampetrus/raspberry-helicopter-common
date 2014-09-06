@@ -3,16 +3,47 @@
 #include <QDomElement>
 #include <QString>
 #include <QStringList>
+#include <QDomElement>
+#include <QDomDocument>
 
-
+QByteArray reverseHexArray(QByteArray s);
 double *tpsNode(QDomNode n);
 double *xyzNode(QDomNode n);
+
+void doubleXYZNode(QDomNode n,double *dest);
+void floatXYZNode(QDomNode n,float *dest);
+void intXYZNode(QDomNode n,int *dest);
+
+void floatAngleNode(QDomNode n,float *dest);
+void floatQuantNode(QDomNode n,float *dest);
+
+void addXYZElementsFromDouble(QDomDocument &d,QDomElement &e,double *src);
+void addXYZElementFromFloat(QDomDocument &d,QDomElement &e,float *src);
+void addTPSElementsFromDouble(QDomDocument &d,QDomElement &e,double *src);
+void addTPSElementsFromFloat(QDomDocument &d,QDomElement &e,float *src);
+void addQuantElementsFromFloat(QDomDocument &d,QDomElement &e,float *src);
+void addXYZElementFromInt(QDomDocument &d,QDomElement &e,int *src);
+
+template<class T> void copyArray(T* srcArray,T* destArray,const int size) {
+    for (int k=0;k<size;k++) {
+        destArray[k] = srcArray[k];
+    }
+}
+
+bool isArrayEqual(float *a,float *b,int s);
+bool isArrayEqual(double *a,double *b,int s);
+bool isArrayEqual(int *a,int *b,int s);
+
+
 QByteArray fromDouble(double d);
 double fromHex(QByteArray h);
-
+QByteArray hexFromFloat(float d);
+float floatFromHex(QByteArray h);
 class rpi_device {
 public:
-    enum RPI_DEVICE { RPI_ACC, RPI_GYRO, RPI_PRESSURE, RPI_GPS, RPI_COMPASS, RPI_ULTRASONICSENSOR, RPI_CONTROL, RPI_SERVO, RPI_BIMOTOR, RPI_ESCMOTOR  };
+    enum RPI_DEVICE { RPI_ACC, RPI_GYRO, RPI_PRESSURE, RPI_GPS, RPI_COMPASS, RPI_ULTRASONICSENSOR, RPI_IMU9DOF, RPI_CONTROL=50, RPI_SERVO, RPI_BIMOTOR, RPI_ESCMOTOR,  };
+    enum SENSOR_MODE { SENSOR_MODE_CLIENT =1, SENSOR_MODE_SERVER =20 };
+    enum RPI_DEVICE_NUMBERS{NUM_ZERO=0, NUM_ONE, NUM_TWO, NUM_THREE, NUM_FOUR, NUM_FIVE, NUM_SIX, NUM_SEVEN, NUM_EIGHT, NUM_NINE };
     rpi_device();
     rpi_device(const rpi_device &r);
     ~rpi_device();
@@ -41,8 +72,11 @@ public:
     rpi_device* basicDevice();
     void setId(int i);
     int id();
-
+    static QStringList functionTest();
+    bool operator==(const rpi_device &r);
+    QString errorString();
 protected:
+    QString errorstring;
     uint type_v ;
     uint addr_v;
     QString device_v;

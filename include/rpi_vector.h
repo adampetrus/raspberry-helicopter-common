@@ -4,6 +4,8 @@
 
 
 
+
+
 QByteArray fromDouble(double d);
 double fromHex(QByteArray h);
 double earth_radius();

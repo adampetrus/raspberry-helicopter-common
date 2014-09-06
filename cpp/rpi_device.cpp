@@ -1,6 +1,16 @@
 #include "rpi_device.h"
 #include <QDebug>
 
+QByteArray reverseHexArray(QByteArray s) {
+    QByteArray r;
+    if (s.size() % 2) { return "0000000";}
+    for (int k=s.size()/2-1;k>=0;k--)
+    {
+        r += s.mid(k*2,2);
+    }
+    return r;
+}
+
 rpi_device::rpi_device() {
     id_v=0;
     type_v =0;
@@ -39,6 +49,13 @@ rpi_device::rpi_device(const rpi_device &r) {
     node_v = r.node_v;
     device_v = r.device_v;
     id_v = r.id_v;
+    dev_phi = r.dev_phi;
+    dev_sigma = r.dev_sigma;
+    dev_theta = r.dev_theta;
+    dev_x = r.dev_x;
+    dev_y = r.dev_y;
+    dev_z = r.dev_z;
+
 }
 
 
@@ -53,6 +70,9 @@ void rpi_device::addtoDomDoc(QDomDocument &d,QDomElement &e,bool conf) {
     QDomText tnode = d.createTextNode(QString("%1").arg(node_v));
     QDomElement eid = d.createElement("id");
     QDomText tid = d.createTextNode(QString("%1").arg(id_v));
+    QDomElement etype = d.createElement("type");
+    QDomText ttype = d.createTextNode(QString("%1").arg(type_v));
+
 
     e.appendChild(eaddress);
     eaddress.appendChild(taddress);
@@ -62,6 +82,8 @@ void rpi_device::addtoDomDoc(QDomDocument &d,QDomElement &e,bool conf) {
     enode.appendChild(tnode);
     e.appendChild(eid);
     eid.appendChild(tid);
+    e.appendChild(etype);
+    etype.appendChild(ttype);
 
     if (conf) {
 
@@ -119,6 +141,9 @@ void rpi_device::readDomElement(QDomElement &elem) {
             else if (f.tagName() == "id") {
                 id_v = f.text().toInt();
             }
+            else if (f.tagName() == "type") {
+                type_v = f.text().toInt();
+            }
 
             else if (f.tagName() == "Location") {
 
@@ -155,6 +180,25 @@ void rpi_device::setZDev(double i) { dev_z =i;}
 void rpi_device::setThetaDev(double i) {dev_theta =i;}
 void rpi_device::setPhiDev(double i) { dev_phi= i;}
 void rpi_device::setSigmaDev(double i) {dev_sigma = i; }
+QString rpi_device::errorString(){
+    return errorstring;
+}
+
+bool rpi_device::operator==(const rpi_device &r){
+    bool ret =true;
+    errorstring = "";
+    if (r.type_v != type_v) { errorstring += QString("Type is not equal,(%1,%2):").arg(r.type_v).arg(type_v); ret= false; }
+    if (r.addr_v != addr_v) { errorstring  += QString("Address is not equal,(%1,%2):").arg(r.addr_v).arg(addr_v); ret= false; }
+    if (r.node_v != node_v) { errorstring  += QString("Node Value is not equal,(%1,%2):").arg(r.node_v).arg(node_v); ret= false; }
+    if (r.dev_x != dev_x) { errorstring  += QString("Device X Location is not equal,(%1,%2):").arg(r.dev_x).arg(dev_x); ret= false; }
+    if (r.dev_y != dev_y) { errorstring  += QString("Device Y Location is not equal,(%1,%2):").arg(r.dev_y).arg(dev_y); ret= false; }
+    if (r.dev_z != dev_z) { errorstring  += QString("Device Z Location is not equal,(%1,%2):").arg(r.dev_z).arg(dev_z); ret= false; }
+    if (r.dev_theta != dev_theta) { errorstring  += QString("Device Theta Orientation is not equal,(%1,%2):").arg(r.dev_theta).arg(dev_theta); ret= false; }
+    if (r.dev_phi != dev_phi) { errorstring  += QString("Device Phi Orientation is not equal,(%1,%2):").arg(r.dev_phi).arg(dev_phi); ret= false; }
+    if (r.dev_sigma != dev_sigma) { errorstring  += QString("Device Sigma Orientation is not equal,(%1,%2):").arg(r.dev_sigma).arg(dev_sigma); ret= false; }
+    if (r.id_v != id_v) { errorstring  += QString("Device ID is not equal,(%1,%2):").arg(r.id_v).arg(id_v); ret= false; }
+    return ret;
+}
 
 rpi_request::rpi_request(int mode) {
     type_v= mode;
@@ -314,7 +358,7 @@ double *xyzNode(QDomNode n) {
         if(!e.isNull()) {
             //qDebug() << e.tagName();
             if (e.tagName() == "x") {
-                r[0] = fromHex(e.text().toLocal8Bit());
+                r[rpi_device::NUM_ZERO] = fromHex(e.text().toLocal8Bit());
             }
             if (e.tagName() == "y") {
                 r[1] = fromHex(e.text().toLocal8Bit());
@@ -330,6 +374,141 @@ double *xyzNode(QDomNode n) {
 }
 
 
+double *quadNode(QDomNode n) {
+    double *r = new double [3];
+    while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "q0") {
+                r[rpi_device::NUM_ZERO] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q1") {
+                r[1] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q2") {
+                r[2] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q3") {
+                r[3] = fromHex(e.text().toLocal8Bit());
+            }
+        }
+        n = n.nextSibling();
+    }
+    return r;
+}
+
+
+void doubleXYZNode(QDomNode n,double *dest){
+    while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "x") {
+                dest[rpi_device::NUM_ZERO] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "y") {
+                dest[1] = fromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "z") {
+                dest[2] = fromHex(e.text().toLocal8Bit());
+            }
+        }
+        n = n.nextSibling();
+    }
+    return ;
+
+
+
+}
+void floatXYZNode(QDomNode n,float *dest){
+    while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "x") {
+                dest[rpi_device::NUM_ZERO] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "y") {
+                dest[1] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "z") {
+                dest[2] = floatFromHex(e.text().toLocal8Bit());
+            }
+        }
+        n = n.nextSibling();
+    }
+    return ;
+
+
+
+
+}
+void intXYZNode(QDomNode n,int *dest){
+    while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "x") {
+                dest[rpi_device::NUM_ZERO] = e.text().toInt();
+            }
+            if (e.tagName() == "y") {
+                dest[1] = e.text().toInt();
+            }
+            if (e.tagName() == "z") {
+                dest[2] = e.text().toInt();
+            }
+        }
+        n = n.nextSibling();
+    }
+    return ;
+}
+
+void floatAngleNode(QDomNode n,float *dest){
+    while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "theta") {
+                dest[rpi_device::NUM_ZERO] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "phi") {
+                dest[1] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "psi") {
+                dest[2] = floatFromHex(e.text().toLocal8Bit());
+            }
+        }
+        n = n.nextSibling();
+    }
+    return ;
+
+}
+void floatQuantNode(QDomNode n,float *dest){
+
+    while(!n.isNull()) {
+    QDomElement e = n.toElement(); // try to convert the node to an element.
+    if(!e.isNull()) {
+        //qDebug() << e.tagName() << floatFromHex(e.text().toLocal8Bit()) << e.text()  ;
+        if (e.tagName() == "q0") {
+            dest[0] = floatFromHex(e.text().toLocal8Bit());
+        }
+        if (e.tagName() == "q1") {
+            dest[1] = floatFromHex(e.text().toLocal8Bit());
+        }
+        if (e.tagName() == "q2") {
+            dest[2] = floatFromHex(e.text().toLocal8Bit());
+        }
+        if (e.tagName() == "q3") {
+            dest[3] = floatFromHex(e.text().toLocal8Bit());
+        }
+    }
+    n = n.nextSibling();
+}
+return ;
+
+}
+
 
 double *tpsNode(QDomNode n) {
     double *r = new double [3];
@@ -338,7 +517,7 @@ double *tpsNode(QDomNode n) {
         if(!e.isNull()) {
             //qDebug() << e.tagName();
             if (e.tagName() == "theta") {
-                r[0] = fromHex(e.text().toLocal8Bit());
+                r[rpi_device::NUM_ZERO] = fromHex(e.text().toLocal8Bit());
             }
             if (e.tagName() == "phi") {
                 r[1] = fromHex(e.text().toLocal8Bit());
@@ -350,4 +529,244 @@ double *tpsNode(QDomNode n) {
         n = n.nextSibling();
     }
     return r;
+}
+
+
+
+void xyzFloatNode(QDomNode n,float *dest) {
+        while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "x") {
+                dest[rpi_device::NUM_ZERO] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "y") {
+                dest[1] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "z") {
+                dest[2] = floatFromHex(e.text().toLocal8Bit());
+            }
+        }
+        n = n.nextSibling();
+    }
+    return ;
+}
+
+void  quantFloatNode(QDomNode n,float *dest) {
+        while(!n.isNull()) {
+        QDomElement e = n.toElement(); // try to convert the node to an element.
+        if(!e.isNull()) {
+            //qDebug() << e.tagName();
+            if (e.tagName() == "q0") {
+                dest[rpi_device::NUM_ZERO] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q1") {
+                dest[1] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q2") {
+                dest[2] = floatFromHex(e.text().toLocal8Bit());
+            }
+            if (e.tagName() == "q3") {
+                dest[3] = floatFromHex(e.text().toLocal8Bit());
+            }
+        }
+        n = n.nextSibling();
+    }
+    return ;
+}
+
+QStringList rpi_device::functionTest(){
+    QStringList ret;
+    rpi_device testDev1;
+    testDev1.setAddress(37);
+    testDev1.setDevice("Sensor");
+    testDev1.setId(12);
+    testDev1.setNode(67);
+    testDev1.setPhiDev(34.23);
+    testDev1.setThetaDev(182.35);
+    testDev1.setSigmaDev(28.65);
+    testDev1.setType(RPI_PRESSURE);
+    testDev1.setXDev(-34.2);
+    testDev1.setYDev(12.45);
+    testDev1.setZDev(0.32);
+
+    if ( (testDev1.address() != 37) ) ret << "Address Not Set";
+    if ( (testDev1.device() != "Sensor") ) ret << "Device Name Not Set";
+    if ( (testDev1.id() != 12) ) ret << "Id Not Set";
+    if ( (testDev1.node() != 67) ) ret << "Node Not Set";
+    if ( (testDev1.phiDev() != 34.23) ) ret << "Phi Not Set";
+    if ( (testDev1.thetaDev() != 182.35) ) ret << "theta Not Set";
+    if ( (testDev1.sigmaDev() != 28.65) ) ret << "Sigma Not Set";
+    if ( (testDev1.type() != RPI_PRESSURE) ) ret << "Type Not Set";
+    if ( (testDev1.xDev() != -34.2) ) ret << "x not set";
+    if ( (testDev1.yDev() != 12.45) ) ret << "y not set";
+    if ( (testDev1.zDev() != 0.32) ) ret << "z not set";
+
+    rpi_device testDevEqual(testDev1);
+
+    if (!(testDevEqual == testDev1)) {
+        if (testDevEqual.errorString().size())
+            ret << "Dev Equal Test";
+        ret << testDevEqual.errorString();}
+
+    QDomDocument xmlDoc("TestDevice");
+    QDomElement root = xmlDoc.createElement("TestDevice");
+    xmlDoc.appendChild(root);
+
+    testDev1.addtoDomDoc(xmlDoc,root);
+    QString xmlStr=  xmlDoc.toString();
+    QDomDocument xmlDoc2("TestDevice");
+    xmlDoc2.setContent(xmlStr);
+    QDomElement docElem = xmlDoc2.documentElement();
+
+    rpi_device testDevXml ;
+    testDevXml.readDomElement(docElem);
+
+    if (!(testDevXml == testDev1)) {
+        if (testDevXml.errorString().size())
+            ret << "Dev XML Test";
+        ret << testDevXml.errorString();}
+
+
+    return ret;
+}
+
+
+
+void addXYZElementsFromDouble(QDomDocument &d,QDomElement &e,double *src){
+    QDomElement ex = d.createElement("x");
+    QDomElement ey = d.createElement("y");
+    QDomElement ez = d.createElement("z");
+    QDomText tx = d.createTextNode(QString(fromDouble(src[rpi_device::NUM_ZERO])));
+    QDomText ty = d.createTextNode(QString(fromDouble(src[1])));
+    QDomText tz = d.createTextNode(QString(fromDouble(src[2])));
+    e.appendChild(ex);
+    e.appendChild(ey);
+    e.appendChild(ez);
+    ex.appendChild(tx);
+    ey.appendChild(ty);
+    ez.appendChild(tz);
+
+}
+
+void addXYZElementFromFloat(QDomDocument &d,QDomElement &e,float *src){
+
+    QDomElement ex = d.createElement("x");
+    QDomElement ey = d.createElement("y");
+    QDomElement ez = d.createElement("z");
+    QDomText tx = d.createTextNode(QString(hexFromFloat(src[rpi_device::NUM_ZERO])));
+    QDomText ty = d.createTextNode(QString(hexFromFloat(src[1])));
+    QDomText tz = d.createTextNode(QString(hexFromFloat(src[2])));
+    e.appendChild(ex);
+    e.appendChild(ey);
+    e.appendChild(ez);
+    ex.appendChild(tx);
+    ey.appendChild(ty);
+    ez.appendChild(tz);
+
+
+}
+
+
+
+void addXYZElementFromInt(QDomDocument &d,QDomElement &e,int *src){
+
+    QDomElement ex = d.createElement("x");
+    QDomElement ey = d.createElement("y");
+    QDomElement ez = d.createElement("z");
+    QDomText tx = d.createTextNode(QString("%1").arg(src[rpi_device::NUM_ZERO]));
+    QDomText ty = d.createTextNode(QString("%1").arg(src[1]));
+    QDomText tz = d.createTextNode(QString("%1").arg(src[2]));
+    e.appendChild(ex);
+    e.appendChild(ey);
+    e.appendChild(ez);
+    ex.appendChild(tx);
+    ey.appendChild(ty);
+    ez.appendChild(tz);
+
+}
+
+void addTPSElementsFromDouble(QDomDocument &d,QDomElement &e,double *src){
+
+    QDomElement et = d.createElement("theta");
+    QDomElement ep = d.createElement("phi");
+    QDomElement es = d.createElement("sigma");
+    QDomText tt = d.createTextNode(QString(fromDouble(src[rpi_device::NUM_ZERO])));
+    QDomText tp = d.createTextNode(QString(fromDouble(src[1])));
+    QDomText ts = d.createTextNode(QString(fromDouble(src[2])));
+    e.appendChild(et);
+    e.appendChild(ep);
+    e.appendChild(es);
+    et.appendChild(tt);
+    ep.appendChild(tp);
+    es.appendChild(ts);
+
+}
+
+void addTPSElementsFromFloat(QDomDocument &d,QDomElement &e,float *src){
+
+    QDomElement et = d.createElement("theta");
+    QDomElement ep = d.createElement("phi");
+    QDomElement es = d.createElement("sigma");
+    QDomText tt = d.createTextNode(QString(hexFromFloat(src[rpi_device::NUM_ZERO])));
+    QDomText tp = d.createTextNode(QString(hexFromFloat(src[1])));
+    QDomText ts = d.createTextNode(QString(hexFromFloat(src[2])));
+    e.appendChild(et);
+    e.appendChild(ep);
+    e.appendChild(es);
+    et.appendChild(tt);
+    ep.appendChild(tp);
+    es.appendChild(ts);
+
+
+}
+
+void addQuantElementsFromFloat(QDomDocument &d,QDomElement &e,float *src){
+
+    QDomElement eq0 = d.createElement("q0");
+    QDomElement eq1= d.createElement("q1");
+    QDomElement eq2 = d.createElement("q2");
+    QDomElement eq3 = d.createElement("q3");
+
+    QDomText tq0 = d.createTextNode(QString(hexFromFloat(src[rpi_device::NUM_ZERO])));
+    QDomText tq1 = d.createTextNode(QString(hexFromFloat(src[rpi_device::NUM_ONE])));
+    QDomText tq2 = d.createTextNode(QString(hexFromFloat(src[rpi_device::NUM_TWO])));
+    QDomText tq3 = d.createTextNode(QString(hexFromFloat(src[rpi_device::NUM_THREE])));
+
+    e.appendChild(eq0);
+    e.appendChild(eq1);
+    e.appendChild(eq2);
+    e.appendChild(eq3);
+
+    eq0.appendChild(tq0);
+    eq1.appendChild(tq1);
+    eq2.appendChild(tq2);
+    eq3.appendChild(tq3);
+
+
+
+}
+
+
+bool isArrayEqual(float *a,float *b,int s){
+    for (int k=0;k<s;k++) {
+        //qDebug() isArrayEqual
+        if (a[k]!=b[k]) return false;
+    }
+    return true;
+
+}
+bool isArrayEqual(double *a,double *b,int s){
+    for (int k=0;k<s;k++) {
+        if (a[k]!=b[k]) return false;
+    }
+    return true;
+}
+bool isArrayEqual(int *a,int *b,int s){
+    for (int k=0;k<s;k++) {
+        //qDebug()  << "isArrayEqual" << k << a[k] << b[k];
+        if (a[k]!=b[k]) return false;
+    }
+    return true;
 }

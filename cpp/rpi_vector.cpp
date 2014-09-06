@@ -23,6 +23,27 @@ double fromHex(QByteArray hex) {
 
 }
 
+
+QByteArray hexFromFloat(float d) {
+    // create a char point referenced to the same address as the double
+    char *c = (char*)&d;
+    QByteArray r(c,4);
+    return r.toHex();
+}
+
+float floatFromHex(QByteArray hex) {
+    double r =0;
+    QByteArray a =QByteArray::fromHex(hex);
+    //qDebug() << "hex Size:" << hex.size();
+    if (hex.size() == 8) {
+
+        float *ra = (float*)a.data();
+        r =*ra;
+    }
+    return r;
+}
+
+
 double earth_radius() {return 64000000;}
 const double c_math_pi = 4.0 * atan(1);
 
