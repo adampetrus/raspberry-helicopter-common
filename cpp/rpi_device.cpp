@@ -1,6 +1,34 @@
 #include "rpi_device.h"
 #include <QDebug>
 
+
+void addIntElement(QDomDocument &d,QDomElement &r,QString t,const int v) {
+    QDomElement e = d.createElement(t);
+    QDomText tn = d.createTextNode(QString("%1").arg(v));
+    r.appendChild(e);
+    e.appendChild(tn);
+}
+
+
+void readElementInt32(QDomElement &e,QMap<QString,int32_t> &m){
+    QDomNode n = e.firstChild();
+    while(!n.isNull()) {
+        QDomElement i = n.toElement(); // try to convert the node to an element.
+        m[i.tagName()] = i.text().toInt();
+        n = n.nextSibling();
+    }
+}
+
+void readElementUint16(QDomElement &e,QMap<QString,uint16_t> &m){
+    QDomNode n = e.firstChild();
+    while(!n.isNull()) {
+        QDomElement i = n.toElement(); // try to convert the node to an element.
+        m[i.tagName()] = i.text().toInt();
+        n = n.nextSibling();
+    }
+}
+
+
 QByteArray reverseHexArray(QByteArray s) {
     QByteArray r;
     if (s.size() % 2) { return "0000000";}

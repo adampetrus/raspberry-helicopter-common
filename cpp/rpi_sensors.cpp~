@@ -301,7 +301,6 @@ rpi_sensor_gps::rpi_sensor_gps(const int mode){
     longitude = new double[mode];
     height = new double[mode];
     accuracy = new double[mode];
-	speed = new double[mode];
 
     currentIndex =0;
     setType(rpi_device::RPI_GPS);
@@ -362,17 +361,15 @@ void rpi_sensor_gps::readDomElement(QDomElement &elem){
 
 
 bool rpi_sensor_gps::test() {
-    double egLong = double( rand())/ double(RAND_MAX ) * 360.0 -180.0;
-    double egLat= double( rand())/ double(RAND_MAX ) * 180.0 -90.0;
+    double egLong = double( rand())/ double(RAND_MAX ) * 180.0;
+    double egLat= double( rand())/ double(RAND_MAX ) * 360;
     double egHeight = double( rand())/ double(RAND_MAX ) * 100;
-	double egSpeed = double( rand())/ double(RAND_MAX ) * 100;
-	
     QDateTime now = QDateTime::currentDateTime();
     //setAngle(egTheta,egPhi);
 
-    setGPS(egLat,egLong,egHeight,egSpeed,4,now);
+    setGPS(egLat,egLong,egHeight,now);
     QString xmlStr = toXML();
-    /*setGPS(0,0,0,QDateTime()
+    setGPS(0,0,0,QDateTime()
            .fromString("01.01.1900 00:00:00.000",qdatetimestring));
     readXML(xmlStr);
 
@@ -380,9 +377,8 @@ bool rpi_sensor_gps::test() {
          && (getHeight() == egHeight) && (getTime() == now)) return true;
 
 
-	*/
+
     qDebug() << xmlStr;
-	
     qDebug() << "GPS Failure";
     qDebug() << getLatitude() << egLat ;//<<(getLatitude() == egLong)
     qDebug() << getLongitude() << egLong;
@@ -407,25 +403,6 @@ void rpi_sensor_gps::setGPS(double lat,double longit,double h,QDateTime time) {
     double xyz[3];
     double trueradius = earth_radius() + h;
 }
-
-void rpi_sensor_gps::setGPS(double lat,double longit,double h,double sp,int nSats,QDateTime time){
-	    currentIndex = currentIndex++ % cMode;
-    longitude[currentIndex] = longit;
-    latitude[currentIndex] = lat;
-    height[currentIndex] = h;
-	speed[currentIndex] =sp;
-	noSatellites = nSats;
-	if (noSatellites) { isFixed = 1; }else{ isFixed = 0;}
-	
-    date[currentIndex] = time;
-
-    double xyz[3];
-    double trueradius = earth_radius() + h;
-}
-
-
-
-
 rpi_sensor_gps::~rpi_sensor_gps(){
     if (size() > 1) {
         delete [] date;
@@ -433,14 +410,12 @@ rpi_sensor_gps::~rpi_sensor_gps(){
         delete [] longitude;
         delete [] height;
         delete [] accuracy;
-		delete [] speed;
     }else{
         delete date;
         delete latitude;
         delete longitude;
         delete height;
         delete accuracy;
-		delete speed;
     }
 }
 void rpi_sensor_gps::startLog(QString filename){}
@@ -450,10 +425,6 @@ void rpi_sensor_gps::stopLog(){}
 double &rpi_sensor_gps::getLatitude() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return latitude[currentIndex]; }
-	
-double &rpi_sensor_gps::getSpeed() {
-    if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
-    return speed[currentIndex]; }	
 double &rpi_sensor_gps::getLongitude() {
     if ( (currentIndex<0) || (currentIndex>=cMode) ) currentIndex =0;
     return longitude[currentIndex]; }
@@ -1325,7 +1296,6 @@ int* rpi_imu_9dof::getCurrentGyroPointer(){
     return gyro[currentIndex];
 }
 
-
 void rpi_imu_9dof::setQuatFAccelIGyroIMagnIByHexMessage(QByteArray &qData){
     //qDebug() << "rpi_imu_9dof dataIn" <<qData ;
 
@@ -1393,59 +1363,6 @@ void rpi_imu_9dof::setQuatFAccelIGyroIMagnIByHexMessage(QByteArray &qData){
         QByteArray tmpp = QByteArray::fromHex(tmpq.toLower());
         magn[nextIndex][k] = ((tmpp[0] & 0xff) << 8) | (tmpp[1] & 0xff);
     }
-    currentIndex = nextIndex;
-}
-
-
-
-void rpi_imu_9dof::setQuatFByHexMessage(QByteArray &qData){
-    //qDebug() << "rpi_imu_9dof dataIn" <<qData ;
-
-    int nextIndex = (currentIndex+1)%cMode;
-    //<< currentIndex;
-    for (int k=0;k<NUM_FOUR;k++) {
-        QByteArray tmpq = reverseHexArray(qData.mid(k*9,8));
-        QByteArray tmpp = QByteArray::fromHex(tmpq.toLower());
-
-
-
-        unsigned long  intbits;
-
-        // Debug Block
-        //unsigned long  intbitsA;
-        //unsigned long  intbitsB;
-        //intbitsA = (tmpp[3] << 24) | ((tmpp[2] & 0xff) << 16) | ((tmpp[1] & 0xff) << 8) | (tmpp[0] & 0xff);
-        //intbitsB = (tmpp[0] << 24) | ((tmpp[1] & 0xff) << 16) | ((tmpp[2] & 0xff) << 8) | (tmpp[3] & 0xff);
-        //float *tmpfA = (float*)&intbitsA;
-        //float *tmpfB = (float*)&intbitsB;
-        //qDebug() << k << tmpq.toLower() << *tmpfA << *tmpfB;
-        // End of Debug Block
-
-        switch (hexMode) {
-            default:
-            case 1 : {
-                intbits = (tmpp[3] << 24) | ((tmpp[2] & 0xff) << 16) | ((tmpp[1] & 0xff) << 8) | (tmpp[0] & 0xff);
-                break;
-                }
-            case 2:
-
-            {
-                intbits = (tmpp[0] << 24) | ((tmpp[1] & 0xff) << 16) | ((tmpp[2] & 0xff) << 8) | (tmpp[3] & 0xff);
-                break;
-            }
-        }
-\
-
-        float *tmpf = (float*)&intbits;
-        //qDebug() << this->currentIndex;
-        //qDebug() <<quaternion[0][k];
-
-        quaternion[nextIndex][k] = *tmpf;//QByteArray::fromHex(tmpq).toFloat();
-        //qDebug() << k << *tmpf ;
-    }
-    //return;
-    //qDebug() << nextIndex << quaternion[nextIndex][0] << quaternion[nextIndex][1] << quaternion[nextIndex][2] << quaternion[nextIndex][3];
-    quaternionToEuler(quaternion[nextIndex],euler[nextIndex]);
     currentIndex = nextIndex;
 }
 

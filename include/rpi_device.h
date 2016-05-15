@@ -5,6 +5,8 @@
 #include <QStringList>
 #include <QDomElement>
 #include <QDomDocument>
+#include <QMap>
+#include <stdint.h>
 
 QByteArray reverseHexArray(QByteArray s);
 double *tpsNode(QDomNode n);
@@ -23,6 +25,10 @@ void addTPSElementsFromDouble(QDomDocument &d,QDomElement &e,double *src);
 void addTPSElementsFromFloat(QDomDocument &d,QDomElement &e,float *src);
 void addQuantElementsFromFloat(QDomDocument &d,QDomElement &e,float *src);
 void addXYZElementFromInt(QDomDocument &d,QDomElement &e,int *src);
+
+void addIntElement(QDomDocument &d,QDomElement &r,QString t,const int v);
+void readElementInt32(QDomElement &e,QMap<QString,int32_t> &m);
+void readElementUint16(QDomElement &e,QMap<QString,uint16_t> &m);
 
 template<class T> void copyArray(T* srcArray,T* destArray,const int size) {
     for (int k=0;k<size;k++) {
@@ -98,7 +104,11 @@ public:
                      REQUEST_ULTRASONIC_LIST_SIZE,REQUEST_CONTROL_LIST_SIZE,
                      REQUEST_DEVICES_LIST, REQUEST_SAVE_CONFIG,
                      REQUEST_INSERT_CONTROL, REQUEST_INSERT_ULTRASONIC,
-                     REQUEST_REMOVE_CONTROL, REQUEST_REMOVE_ULTRASONIC
+                     REQUEST_REMOVE_CONTROL, REQUEST_REMOVE_ULTRASONIC, REQUEST_MULTIWII_STATUS,
+                     REQUEST_MULTIWII_ENABLEBOX, REQUEST_MULTIWII_SETWP, REQUEST_MULTIWII_SETRAW_MOTORS
+                       , REQUEST_MULTIWII_SETRAW_RC,
+                     REQUEST_MULTIWII_ACC_CALIB, REQUEST_MULTIWII_MAG_CALIB, REQUEST_MULTIWII_RESET_CONF,
+                       REQUEST_MULTIWII_SETHEAD, REQUEST_MULTIWII_EERROM_WRITE
                      };
     rpi_request(int mode);
     ~rpi_request();

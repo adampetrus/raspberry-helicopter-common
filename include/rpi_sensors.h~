@@ -69,14 +69,10 @@ public:
     //enum SENSOR_MODE { SENSOR_MODE_CLIENT =1, SENSOR_MODE_SERVER =20 };
 
     void setGPS(double lat,double longit,double h,QDateTime time);
-	void setGPS(double lat,double longit,double h,double sp,int nSats,QDateTime time);
-	
     double &getLatitude();
     double &getLongitude();
     double &getHeight();
     double &getAccuracy();
-	double &getSpeed();
-	
 
 
     QDateTime getTime();
@@ -92,20 +88,16 @@ public:
     void readDomElement(QDomElement &elem);
     bool test();
     void nextValue();
-	int isFixed;
-	int noSatellites;
 private:
     qlonglong sensorSize;
     QDateTime *date;
     double *latitude;
     double *longitude;
     double *height;
-	double *speed;
     double *accuracy;
     double *time;
     int cMode;
     int currentIndex;
-
     rpi_csv_log *log;
 };
 
